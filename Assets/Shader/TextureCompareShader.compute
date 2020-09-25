@@ -1,0 +1,41 @@
+﻿
+struct ComparingData{
+	int texHeight;
+	int texWidth;
+	float maskLimit;
+	int equalPixels;
+	int maskedPixels;
+	int maxAreaHeight;
+	int maxAreaWidth;
+	int areaXIndex;
+	int areaYIndex;
+};
+
+Texture2D<float4> OriginalTexture;
+Texture2D<float4> ChangedTexture;
+Texture2D<float4> MaskTexture;
+RWTexture2D<float4> ResultTexture;
+RWStructuredBuffer<ComparingData> ComparingDataBuffer;
+
+#pragma kernel CSMain
+[numthreads(1,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID){
+
+	int2 currentPoint = int2(ComparingDataBuffer[0].maxAreaWidth * ComparingDataBuffer[0].areaXIndex + id.x,
+								ComparingDataBuffer[0].maxAreaHeight * ComparingDataBuffer[0].areaYIndex + id.y);
+
+	if (currentPoint.y > ComparingDataBuffer[0].texHeight || currentPoint.x > ComparingDataBuffer[0].texWidth)
+		return;
+
+	ResultTexture[currentPoint] = float4(0, 0, 0, 1);
+	if ((MaskTexture[currentPoint].r + MaskTexture[currentPoint].g + MaskTexture[currentPoint].b) / 3.0 < ComparingDataBuffer[0].maskLimit) {
+		ResultTexture[currentPoint] = float4(0.5, 0.5, 0.5, 1);
+		return;
+	}
+
+	InterlockedAdd(ComparingDataBuffer[0].maskedPixels, 1);
+	if (all(OriginalTexture[currentPoint] == ChangedTexture[currentPoint])) {
+		InterlockedAdd(ComparingDataBuffer[0].equalPixels, 1);
+		ResultTexture[currentPoint] = float4(1, 1, 1, 1);
+	}
+}
